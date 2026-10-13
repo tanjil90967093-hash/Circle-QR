@@ -1,0 +1,6 @@
+{
+  "name": "Utility Hub",
+  "description": "Scanner-first all-in-one utility suite: live QR & barcode scanner, multi-page document & PDF scanner, ID card & image capture, plus PDF tools, image editor, expense tracker, calculators, and productivity suite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
