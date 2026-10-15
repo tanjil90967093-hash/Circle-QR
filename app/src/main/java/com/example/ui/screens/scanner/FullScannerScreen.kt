@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.example.UtilityHubApp
@@ -62,6 +63,7 @@ import com.example.ui.components.PrimaryButton
 import com.example.ui.components.SecondaryButton
 import com.example.ui.screens.home.ScannerMode
 import com.example.ui.theme.BrandBlue
+import com.example.utils.DocumentCornerTracker
 import com.example.utils.DocumentFilter
 import com.example.utils.DocumentProcessor
 import com.example.utils.DocumentQuad
@@ -108,7 +110,15 @@ fun FullScannerScreen(
     var currentZoomRatio by remember { mutableFloatStateOf(1.0f) }
     var minZoomRatio by remember { mutableFloatStateOf(1.0f) }
     var maxZoomRatio by remember { mutableFloatStateOf(5.0f) }
-    var showModeSheet by remember { mutableStateOf(false) }
+    var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
+
+    // Real-time document boundary detection
+    val cornerTracker = remember { DocumentCornerTracker() }
+    var realtimeQuad by remember { mutableStateOf<DocumentQuad?>(null) }
+    var realtimeBufferWidth by remember { mutableIntStateOf(0) }
+    var realtimeBufferHeight by remember { mutableIntStateOf(0) }
+    var isRealtimeReliable by remember { mutableStateOf(false) }
+    var isRealtimeStable by remember { mutableStateOf(false) }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -401,8 +411,6 @@ fun FullScannerScreen(
     BackHandler {
         if (showDocumentReviewSheet) {
             showDocumentReviewSheet = false
-        } else if (showModeSheet) {
-            showModeSheet = false
         } else {
             onBack()
         }
@@ -425,165 +433,203 @@ fun FullScannerScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
             } else {
-                // Shared CameraX Stream Engine
-                AndroidView(
-                    factory = { ctx ->
-                        val previewView = PreviewView(ctx).apply {
-                            scaleType = PreviewView.ScaleType.FILL_CENTER
-                        }
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
+                // Shared CameraX Stream Engine with Front/Back switching
+                key(lensFacing) {
+                    AndroidView(
+                        factory = { ctx ->
+                            val previewView = PreviewView(ctx).apply {
+                                scaleType = PreviewView.ScaleType.FILL_CENTER
                             }
+                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                            cameraProviderFuture.addListener({
+                                val cameraProvider = cameraProviderFuture.get()
+                                val preview = Preview.Builder().build().also {
+                                    it.setSurfaceProvider(previewView.surfaceProvider)
+                                }
 
-                            val capture = ImageCapture.Builder()
-                                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                                .build()
-                            imageCapture = capture
+                                val capture = ImageCapture.Builder()
+                                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                                    .build()
+                                imageCapture = capture
 
-                            val analysis = ImageAnalysis.Builder()
-                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                .build()
+                                val analysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .setTargetResolution(android.util.Size(640, 480))
+                                    .build()
 
-                            val multiReader = MultiFormatReader().apply {
-                                val formats = listOf(
-                                    BarcodeFormat.QR_CODE,
-                                    BarcodeFormat.EAN_13,
-                                    BarcodeFormat.EAN_8,
-                                    BarcodeFormat.UPC_A,
-                                    BarcodeFormat.UPC_E,
-                                    BarcodeFormat.CODE_128,
-                                    BarcodeFormat.CODE_39,
-                                    BarcodeFormat.ITF,
-                                    BarcodeFormat.DATA_MATRIX,
-                                    BarcodeFormat.PDF_417,
-                                    BarcodeFormat.AZTEC
-                                )
-                                setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to formats))
-                            }
+                                val multiReader = MultiFormatReader().apply {
+                                    val formats = listOf(
+                                        BarcodeFormat.QR_CODE,
+                                        BarcodeFormat.EAN_13,
+                                        BarcodeFormat.EAN_8,
+                                        BarcodeFormat.UPC_A,
+                                        BarcodeFormat.UPC_E,
+                                        BarcodeFormat.CODE_128,
+                                        BarcodeFormat.CODE_39,
+                                        BarcodeFormat.ITF,
+                                        BarcodeFormat.DATA_MATRIX,
+                                        BarcodeFormat.PDF_417,
+                                        BarcodeFormat.AZTEC
+                                    )
+                                    setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to formats))
+                                }
 
-                            var hasFoundCode = false
-                            val cameraExecutor = Executors.newSingleThreadExecutor()
-                            analysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                                if (currentMode == ScannerMode.QR_BARCODE && !hasFoundCode) {
-                                    val buffer = imageProxy.planes[0].buffer
-                                    val data = ByteArray(buffer.remaining())
-                                    buffer.get(data)
-                                    val width = imageProxy.width
-                                    val height = imageProxy.height
-
+                                var hasFoundCode = false
+                                val cameraExecutor = Executors.newSingleThreadExecutor()
+                                analysis.setAnalyzer(cameraExecutor) { imageProxy ->
                                     try {
-                                        val source = PlanarYUVLuminanceSource(
-                                            data, width, height, 0, 0, width, height, false
-                                        )
-                                        val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-                                        val result = multiReader.decodeWithState(binaryBitmap)
-                                        val text = result.text
-                                        if (!text.isNullOrBlank()) {
-                                            hasFoundCode = true
-                                            scope.launch(Dispatchers.Main) {
-                                                vibrateDevice(ctx)
-                                                repository.addHistory(
-                                                    "qr_scanner",
-                                                    "Scanned ${result.barcodeFormat.name}",
-                                                    text
+                                        if (currentMode == ScannerMode.QR_BARCODE && !hasFoundCode) {
+                                            val buffer = imageProxy.planes[0].buffer
+                                            val data = ByteArray(buffer.remaining())
+                                            buffer.get(data)
+                                            val width = imageProxy.width
+                                            val height = imageProxy.height
+
+                                            try {
+                                                val source = PlanarYUVLuminanceSource(
+                                                    data, width, height, 0, 0, width, height, false
                                                 )
-                                                onNavigateToResult(text, result.barcodeFormat.name)
+                                                val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+                                                val result = multiReader.decodeWithState(binaryBitmap)
+                                                val text = result.text
+                                                if (!text.isNullOrBlank()) {
+                                                    hasFoundCode = true
+                                                    scope.launch(Dispatchers.Main) {
+                                                        vibrateDevice(ctx)
+                                                        repository.addHistory(
+                                                            "qr_scanner",
+                                                            "Scanned ${result.barcodeFormat.name}",
+                                                            text
+                                                        )
+                                                        onNavigateToResult(text, result.barcodeFormat.name)
+                                                    }
+                                                }
+                                            } catch (_: NotFoundException) {
+                                            } catch (e: Exception) {
+                                            } finally {
+                                                multiReader.reset()
+                                            }
+                                        } else if (currentMode == ScannerMode.DOCUMENT_PDF && !isProcessing) {
+                                            val yPlane = imageProxy.planes[0]
+                                            val rawResult = DocumentProcessor.detectDocumentInYuv(
+                                                yBuffer = yPlane.buffer,
+                                                width = imageProxy.width,
+                                                height = imageProxy.height,
+                                                rowStride = yPlane.rowStride,
+                                                pixelStride = yPlane.pixelStride,
+                                                rotationDegrees = imageProxy.imageInfo.rotationDegrees
+                                            )
+                                            val trackedQuad = cornerTracker.track(rawResult)
+                                            val stable = cornerTracker.isStable
+                                            val reliable = rawResult != null && rawResult.isReliable
+
+                                            scope.launch(Dispatchers.Main) {
+                                                realtimeQuad = trackedQuad
+                                                isRealtimeReliable = reliable
+                                                isRealtimeStable = stable
+                                                if (rawResult != null) {
+                                                    realtimeBufferWidth = rawResult.bufferWidth
+                                                    realtimeBufferHeight = rawResult.bufferHeight
+                                                }
                                             }
                                         }
-                                    } catch (_: NotFoundException) {
                                     } catch (e: Exception) {
+                                        e.printStackTrace()
                                     } finally {
-                                        multiReader.reset()
+                                        imageProxy.close()
                                     }
                                 }
-                                imageProxy.close()
-                            }
 
-                            try {
-                                cameraProvider.unbindAll()
-                                val camera = cameraProvider.bindToLifecycle(
-                                    lifecycleOwner,
-                                    CameraSelector.DEFAULT_BACK_CAMERA,
-                                    preview,
-                                    capture,
-                                    analysis
+                                try {
+                                    cameraProvider.unbindAll()
+                                    val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+                                    val camera = cameraProvider.bindToLifecycle(
+                                        lifecycleOwner,
+                                        cameraSelector,
+                                        preview,
+                                        capture,
+                                        analysis
+                                    )
+                                    cameraControl = camera.cameraControl
+                                    isFlashSupported = camera.cameraInfo.hasFlashUnit()
+                                    camera.cameraInfo.zoomState.observe(lifecycleOwner) { zState ->
+                                        if (zState != null) {
+                                            minZoomRatio = zState.minZoomRatio
+                                            maxZoomRatio = zState.maxZoomRatio.coerceAtMost(8f)
+                                            currentZoomRatio = zState.zoomRatio
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }, ContextCompat.getMainExecutor(ctx))
+                            previewView
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(cameraControl) {
+                                detectTransformGestures { _, _, zoom, _ ->
+                                    cameraControl?.let { ctrl ->
+                                        val newZoom = (currentZoomRatio * zoom).coerceIn(minZoomRatio, maxZoomRatio)
+                                        currentZoomRatio = newZoom
+                                        ctrl.setZoomRatio(newZoom)
+                                    }
+                                }
+                            }
+                            .testTag("full_camera_preview")
+                    )
+                }
+
+                // Document Detection & Reticle Guides Overlay
+                if (currentMode == ScannerMode.DOCUMENT_PDF) {
+                    LiveDocumentDetectionOverlay(
+                        detectedQuad = realtimeQuad,
+                        bufferWidth = realtimeBufferWidth,
+                        bufferHeight = realtimeBufferHeight,
+                        isReliable = isRealtimeReliable,
+                        isStable = isRealtimeStable,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("live_doc_overlay")
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 120.dp, top = 80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when (currentMode) {
+                            ScannerMode.QR_BARCODE -> {
+                                Box(
+                                    modifier = Modifier
+                                        .size(260.dp)
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .border(3.dp, BrandBlue, RoundedCornerShape(24.dp))
+                                        .testTag("qr_reticle_frame")
                                 )
-                                cameraControl = camera.cameraControl
-                                isFlashSupported = camera.cameraInfo.hasFlashUnit()
-                                camera.cameraInfo.zoomState.observe(lifecycleOwner) { zState ->
-                                    if (zState != null) {
-                                        minZoomRatio = zState.minZoomRatio
-                                        maxZoomRatio = zState.maxZoomRatio.coerceAtMost(8f)
-                                        currentZoomRatio = zState.zoomRatio
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
                             }
-                        }, ContextCompat.getMainExecutor(ctx))
-                        previewView
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(cameraControl) {
-                            detectTransformGestures { _, _, zoom, _ ->
-                                cameraControl?.let { ctrl ->
-                                    val newZoom = (currentZoomRatio * zoom).coerceIn(minZoomRatio, maxZoomRatio)
-                                    currentZoomRatio = newZoom
-                                    ctrl.setZoomRatio(newZoom)
-                                }
+                            ScannerMode.ID_CARD -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.9f)
+                                        .height(210.dp)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .border(3.dp, BrandBlue, RoundedCornerShape(18.dp))
+                                        .testTag("id_reticle_frame")
+                                )
                             }
-                        }
-                        .testTag("full_camera_preview")
-                )
-
-                // Reticle guides
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 120.dp, top = 80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    when (currentMode) {
-                        ScannerMode.QR_BARCODE -> {
-                            Box(
-                                modifier = Modifier
-                                    .size(260.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .border(3.dp, BrandBlue, RoundedCornerShape(24.dp))
-                                    .testTag("qr_reticle_frame")
-                            )
-                        }
-                        ScannerMode.DOCUMENT_PDF -> {
-                            DocumentFrameWithCorners(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.86f)
-                                    .fillMaxHeight(0.76f)
-                                    .testTag("doc_reticle_frame")
-                            )
-                        }
-                        ScannerMode.ID_CARD -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.9f)
-                                    .height(210.dp)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .border(3.dp, BrandBlue, RoundedCornerShape(18.dp))
-                                    .testTag("id_reticle_frame")
-                            )
-                        }
-                        ScannerMode.IMAGE_SCAN -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.88f)
-                                    .fillMaxHeight(0.68f)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(20.dp))
-                                    .testTag("image_reticle_frame")
-                            )
+                            ScannerMode.IMAGE_SCAN -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.88f)
+                                        .fillMaxHeight(0.68f)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(20.dp))
+                                        .testTag("image_reticle_frame")
+                                )
+                            }
+                            else -> {}
                         }
                     }
                 }
@@ -591,46 +637,54 @@ fun FullScannerScreen(
                 // Instructions Banner Overlay
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = Color.Black.copy(alpha = 0.65f),
+                    color = when {
+                        currentMode == ScannerMode.DOCUMENT_PDF && isRealtimeStable -> Color(0xFF10B981).copy(alpha = 0.9f)
+                        currentMode == ScannerMode.DOCUMENT_PDF && isRealtimeReliable -> Color(0xFF2563EB).copy(alpha = 0.85f)
+                        else -> Color.Black.copy(alpha = 0.65f)
+                    },
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .padding(top = 80.dp)
+                        .padding(top = 76.dp)
                         .testTag("scanner_instructions")
                 ) {
-                    val instructionText = if (currentMode == ScannerMode.DOCUMENT_PDF) {
-                        if (documentPages.isNotEmpty()) {
-                            "${documentPages.size} page(s) scanned • Align next document or tap Done"
-                        } else {
-                            "Align document within corner guides • Tap shutter to scan"
+                    val instructionText = when (currentMode) {
+                        ScannerMode.DOCUMENT_PDF -> {
+                            when {
+                                documentPages.isNotEmpty() -> "${documentPages.size} page(s) scanned • Align next page or tap Done"
+                                isRealtimeStable -> "Document Steady • Ready to capture"
+                                isRealtimeReliable -> "Document Detected • Hold steady"
+                                else -> "Align document within the frame"
+                            }
                         }
-                    } else {
-                        currentMode.instruction
+                        ScannerMode.QR_BARCODE -> "Point camera at a QR code or barcode"
+                        ScannerMode.ID_CARD -> "Align card edges within the rectangular guide"
+                        ScannerMode.IMAGE_SCAN -> "Frame the photo and capture"
                     }
                     Text(
                         text = instructionText,
                         color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp)
                     )
                 }
 
-                // Scanner Top Bar: [ Back ] ... [ Mode ▼ ] [ Zoom ] [ Flash ] [ Gallery ]
+                // Top Camera Toolbar: [ Back ] ... [ Zoom ] ... [ Flash ]
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Back button
-                    Box(
+                    // Left: Back button
+                    IconButton(
+                        onClick = onBack,
                         modifier = Modifier
                             .size(44.dp)
                             .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.5f))
-                            .clickable { onBack() },
-                        contentAlignment = Alignment.Center
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .testTag("scanner_back_btn")
                     ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
@@ -640,141 +694,135 @@ fun FullScannerScreen(
                         )
                     }
 
-                    // Mode Selector Pill
+                    // Center: Zoom Indicator / Toggle Pill
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = Color.Black.copy(alpha = 0.65f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                        color = Color.Black.copy(alpha = 0.55f),
                         modifier = Modifier
-                            .clickable { showModeSheet = true }
-                            .testTag("scanner_mode_dropdown")
+                            .clickable {
+                                val nextZoom = if (currentZoomRatio >= 1.9f) 1.0f else 2.0f
+                                currentZoomRatio = nextZoom
+                                cameraControl?.setZoomRatio(nextZoom)
+                            }
+                            .testTag("zoom_toggle_btn")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
                             Icon(
-                                imageVector = currentMode.icon,
-                                contentDescription = null,
-                                tint = BrandBlue,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = currentMode.title,
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                                imageVector = Icons.Default.ZoomIn,
+                                contentDescription = "Zoom",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Choose Mode",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                            Text(
+                                text = "${String.format(Locale.US, "%.1f", currentZoomRatio)}x",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                             )
                         }
                     }
 
-                    // Right Actions: Zoom, Flash & Gallery
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Zoom Indicator / Toggle Pill
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.Black.copy(alpha = 0.5f),
-                            modifier = Modifier
-                                .clickable {
-                                    val nextZoom = if (currentZoomRatio >= 1.9f) 1.0f else 2.0f
-                                    currentZoomRatio = nextZoom
-                                    cameraControl?.setZoomRatio(nextZoom)
-                                }
-                                .testTag("zoom_toggle_btn")
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ZoomIn,
-                                    contentDescription = "Zoom",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "${String.format(Locale.US, "%.1f", currentZoomRatio)}x",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                            }
-                        }
-
-                        if (isFlashSupported) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.5f))
-                                    .clickable { isFlashOn = !isFlashOn }
-                                    .testTag("toggle_torch_btn"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                                    contentDescription = "Toggle Torch",
-                                    tint = if (isFlashOn) BrandBlue else Color.White,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-
-                        Box(
+                    // Right: Flash toggle
+                    if (isFlashSupported) {
+                        IconButton(
+                            onClick = { isFlashOn = !isFlashOn },
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                                .clickable { openGallery() }
-                                .testTag("gallery_import_btn"),
-                            contentAlignment = Alignment.Center
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .testTag("toggle_torch_btn")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.PhotoLibrary,
-                                contentDescription = "Import from Gallery",
-                                tint = Color.White,
+                                imageVector = if (isFlashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                contentDescription = if (isFlashOn) "Turn Flash Off" else "Turn Flash On",
+                                tint = if (isFlashOn) Color(0xFFFBBF24) else Color.White,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
+                    } else {
+                        Box(modifier = Modifier.size(44.dp))
                     }
                 }
 
-                // Bottom Controls Bar
-                Row(
+                // Bottom Controls: Mode Selector + Shutter Bar
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp, start = 20.dp, end = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(bottom = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    if (currentMode == ScannerMode.DOCUMENT_PDF) {
-                        if (documentPages.isNotEmpty()) {
+                    // Horizontal Mode Selector directly above shutter button
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 18.dp)
+                            .testTag("camera_mode_selector"),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(ScannerMode.entries) { mode ->
+                            val isSelected = currentMode == mode
+                            val modeLabel = when (mode) {
+                                ScannerMode.DOCUMENT_PDF -> "Scanner"
+                                ScannerMode.QR_BARCODE -> "QR / Barcode"
+                                ScannerMode.ID_CARD -> "ID Card"
+                                ScannerMode.IMAGE_SCAN -> "Photo"
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 6.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(if (isSelected) Color(0xFFFBBF24).copy(alpha = 0.22f) else Color.Transparent)
+                                    .clickable {
+                                        if (currentMode != mode) {
+                                            currentMode = mode
+                                            vibrateDevice(context)
+                                        }
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = modeLabel.uppercase(Locale.US),
+                                    color = if (isSelected) Color(0xFFFBBF24) else Color.White.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        letterSpacing = 0.8.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // Shutter & Actions Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 28.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Left: Gallery button or Page counter badge
+                        if (currentMode == ScannerMode.DOCUMENT_PDF && documentPages.isNotEmpty()) {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
                                 color = Color.Black.copy(alpha = 0.65f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, BrandBlue.copy(alpha = 0.6f)),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, BrandBlue),
                                 modifier = Modifier
                                     .clickable { showDocumentReviewSheet = true }
                                     .testTag("doc_pages_counter_badge")
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(32.dp)
+                                            .size(34.dp)
                                             .clip(RoundedCornerShape(6.dp))
                                     ) {
                                         Image(
@@ -786,44 +834,52 @@ fun FullScannerScreen(
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        "${documentPages.size} pages",
+                                        "${documentPages.size}p",
                                         color = Color.White,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                                     )
                                 }
                             }
                         } else {
-                            Spacer(modifier = Modifier.size(48.dp))
+                            IconButton(
+                                onClick = { openGallery() },
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.55f))
+                                    .testTag("gallery_import_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoLibrary,
+                                    contentDescription = "Import from Gallery",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
-                    } else {
-                        Spacer(modifier = Modifier.size(48.dp))
-                    }
 
-                    // Main Shutter / Action Button
-                    if (currentMode != ScannerMode.QR_BARCODE) {
+                        // Center: Prominent Circular Shutter Button
                         Box(
                             modifier = Modifier
-                                .size(76.dp)
+                                .size(80.dp)
                                 .clip(CircleShape)
                                 .background(Color.White)
                                 .clickable {
-                                    when (currentMode) {
-                                        ScannerMode.DOCUMENT_PDF -> {
-                                            captureDocumentPage()
-                                        }
-                                        ScannerMode.ID_CARD -> {
-                                            capturePhoto { bmp ->
+                                    if (!isProcessing) {
+                                        when (currentMode) {
+                                            ScannerMode.DOCUMENT_PDF -> captureDocumentPage()
+                                            ScannerMode.ID_CARD -> capturePhoto { bmp ->
                                                 capturedCardBitmap = bmp
                                                 showCardResultDialog = true
                                             }
-                                        }
-                                        ScannerMode.IMAGE_SCAN -> {
-                                            capturePhoto { bmp ->
+                                            ScannerMode.IMAGE_SCAN -> capturePhoto { bmp ->
                                                 capturedImageBitmap = bmp
                                                 showImageResultDialog = true
                                             }
+                                            ScannerMode.QR_BARCODE -> {
+                                                Toast.makeText(context, "Point at QR code or barcode to scan", Toast.LENGTH_SHORT).show()
+                                            }
                                         }
-                                        else -> {}
                                     }
                                 }
                                 .testTag("camera_shutter_btn"),
@@ -831,37 +887,57 @@ fun FullScannerScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(64.dp)
+                                    .size(66.dp)
                                     .clip(CircleShape)
-                                    .border(2.dp, Color.Black, CircleShape)
-                                    .background(BrandBlue)
-                            )
+                                    .border(2.5.dp, Color.Black, CircleShape)
+                                    .background(if (currentMode == ScannerMode.DOCUMENT_PDF) BrandBlue else Color.White)
+                            ) {
+                                if (currentMode == ScannerMode.QR_BARCODE) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCodeScanner,
+                                        contentDescription = "Scan Code",
+                                        tint = BrandBlue,
+                                        modifier = Modifier.size(32.dp).align(Alignment.Center)
+                                    )
+                                }
+                            }
                         }
-                    } else {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.Black.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "Scanning automatically...",
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                        }
-                    }
 
-                    if (currentMode == ScannerMode.DOCUMENT_PDF && documentPages.isNotEmpty()) {
-                        Button(
-                            onClick = { showDocumentReviewSheet = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.testTag("doc_done_review_btn")
-                        ) {
-                            Text("Done (${documentPages.size})")
+                        // Right: Done button if pages exist, or Switch Camera
+                        if (currentMode == ScannerMode.DOCUMENT_PDF && documentPages.isNotEmpty()) {
+                            Button(
+                                onClick = { showDocumentReviewSheet = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier.testTag("doc_done_review_btn")
+                            ) {
+                                Text(
+                                    "Done (${documentPages.size})",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        } else {
+                            IconButton(
+                                onClick = {
+                                    lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
+                                        CameraSelector.LENS_FACING_FRONT
+                                    else
+                                        CameraSelector.LENS_FACING_BACK
+                                },
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.55f))
+                                    .testTag("switch_camera_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FlipCameraAndroid,
+                                    contentDescription = "Switch Camera",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
-                    } else {
-                        Spacer(modifier = Modifier.size(48.dp))
                     }
                 }
             }
@@ -883,95 +959,7 @@ fun FullScannerScreen(
         }
     }
 
-    // Mode Selection Animated Bottom Sheet
-    if (showModeSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showModeSheet = false },
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            modifier = Modifier.testTag("mode_selection_sheet")
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-                    .padding(bottom = 24.dp)
-            ) {
-                Text(
-                    text = "Choose Scanner Mode",
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(16.dp))
 
-                ScannerMode.entries.forEach { mode ->
-                    val isSelected = currentMode == mode
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                currentMode = mode
-                                showModeSheet = false
-                            }
-                            .testTag("scanner_mode_option_${mode.name}"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = mode.icon,
-                                    contentDescription = mode.title,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = mode.title,
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = mode.subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Selected",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // Document Review Sheet
     if (showDocumentReviewSheet) {
