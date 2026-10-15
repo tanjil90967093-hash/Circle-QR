@@ -33,11 +33,27 @@ import com.example.ui.screens.storage.StorageAnalyzerScreen
 import com.example.ui.screens.tools.CategoryDetailsScreen
 import com.example.ui.screens.tools.ToolsScreen
 
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+
 @Composable
 fun AppNavigation() {
+    val context = LocalContext.current
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    fun getPreferredScannerRoute(): String {
+        val prefs = context.getSharedPreferences("utility_hub_prefs", Context.MODE_PRIVATE)
+        val defaultMode = prefs.getString("default_scanner_mode", "QR & Barcode") ?: "QR & Barcode"
+        val modeParam = when (defaultMode) {
+            "Document / PDF" -> "DOCUMENT_PDF"
+            "ID / Card" -> "ID_CARD"
+            "Image Scan" -> "IMAGE_SCAN"
+            else -> "QR_BARCODE"
+        }
+        return Screen.Scanner.createRoute(modeParam)
+    }
 
     val isBottomBarVisible = currentRoute == null ||
             currentRoute == Screen.Home.route ||
@@ -75,7 +91,7 @@ fun AppNavigation() {
                         }
                     },
                     onScannerClick = {
-                        navController.navigate(Screen.Scanner.createRoute("QR_BARCODE"))
+                        navController.navigate(getPreferredScannerRoute())
                     }
                 )
             }
@@ -92,7 +108,7 @@ fun AppNavigation() {
             composable(Screen.Home.route) {
                 HomeScreen(
                     onNavigateToScanner = {
-                        navController.navigate(Screen.Scanner.createRoute("QR_BARCODE"))
+                        navController.navigate(getPreferredScannerRoute())
                     },
                     onNavigateToCategory = { categoryId ->
                         navController.navigate(Screen.CategoryDetails.createRoute(categoryId))

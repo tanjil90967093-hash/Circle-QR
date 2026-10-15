@@ -62,7 +62,7 @@ fun SettingsScreen() {
     val themeModePref = when (currentThemeMode.uppercase()) {
         "DARK" -> "Dark"
         "SYSTEM", "SYSTEM DEFAULT" -> "System Default"
-        "READING" -> "Reading"
+        "READING" -> "Reading Mode"
         else -> "Light"
     }
     var readingModeEnabled by remember(currentThemeMode) {

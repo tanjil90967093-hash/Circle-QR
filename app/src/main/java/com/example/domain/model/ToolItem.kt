@@ -123,7 +123,7 @@ object ToolRegistry {
             description = "Scan multi-page documents, crop & export to PDF",
             category = ToolCategory.SCANNER,
             icon = Icons.Default.DocumentScanner,
-            route = "scanner?mode=DOCUMENT_PDF",
+            route = "tool_doc_scanner",
             keywords = listOf("pdf", "camscanner", "paper", "receipt"),
             isQuickTool = true
         ),
