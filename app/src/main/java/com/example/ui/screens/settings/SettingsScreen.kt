@@ -477,9 +477,9 @@ fun SettingsScreen() {
                             iconTint = Color(0xFF64748B),
                             title = "Version",
                             description = "Check for updates",
-                            valueText = "v1.0.0",
+                            valueText = "v${com.example.BuildConfig.VERSION_NAME}",
                             onClick = {
-                                Toast.makeText(context, "Utility Hub is up to date (v1.0.0)", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Utility Hub v${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE}) is up to date", Toast.LENGTH_SHORT).show()
                             },
                             primaryColor = primaryTextColor,
                             secondaryColor = secondaryTextColor,

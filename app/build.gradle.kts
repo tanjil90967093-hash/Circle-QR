@@ -16,8 +16,10 @@ android {
     applicationId = "com.aistudio.utilityhub.vpkrtz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    val vCode = (System.getenv("VERSION_CODE") ?: System.getenv("BUILD_NUMBER"))?.toIntOrNull() ?: 1
+    val vName = System.getenv("VERSION_NAME") ?: "1.0.0"
+    versionCode = vCode
+    versionName = vName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
