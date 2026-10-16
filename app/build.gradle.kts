@@ -13,13 +13,11 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.utilityhub.vpkrtz"
+    applicationId = "com.circleqr"
     minSdk = 24
     targetSdk = 36
-    val vCode = (System.getenv("VERSION_CODE") ?: System.getenv("BUILD_NUMBER"))?.toIntOrNull() ?: 1
-    val vName = System.getenv("VERSION_NAME") ?: "1.0.0"
-    versionCode = vCode
-    versionName = vName
+    versionCode = 1
+    versionName = "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -135,5 +133,5 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+  // "ksp"(libs.moshi.kotlin.codegen)
 }
