@@ -23,15 +23,17 @@ import kotlin.math.*
 
 enum class DocumentFilter(val label: String) {
     ORIGINAL("Original"),
-    AUTO_ENHANCE("Auto Enhance"),
+    LIGHTEN("Auto Enhance"),
     MAGIC_COLOR("Color"),
+    NO_SHADOW("No Shadow"),
     GRAYSCALE("Grayscale"),
     BLACK_WHITE("Black & White");
 
     companion object {
-        // Compatibility alias
-        val ENHANCE get() = AUTO_ENHANCE
-        val SHARPEN get() = AUTO_ENHANCE
+        // Compatibility aliases
+        val ENHANCE get() = LIGHTEN
+        val AUTO_ENHANCE get() = LIGHTEN
+        val SHARPEN get() = LIGHTEN
     }
 }
 
@@ -683,11 +685,11 @@ object DocumentProcessor {
             DocumentFilter.ORIGINAL -> {
                 bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, true)
             }
-            DocumentFilter.AUTO_ENHANCE -> {
+            DocumentFilter.LIGHTEN -> {
                 val cm = ColorMatrix(floatArrayOf(
-                    1.22f, 0f, 0f, 0f, -12f,
-                    0f, 1.22f, 0f, 0f, -12f,
-                    0f, 0f, 1.22f, 0f, -12f,
+                    1.15f, 0f, 0f, 0f, 22f,
+                    0f, 1.15f, 0f, 0f, 22f,
+                    0f, 0f, 1.15f, 0f, 22f,
                     0f, 0f, 0f, 1f, 0f
                 ))
                 applyColorMatrix(bitmap, cm)
@@ -703,6 +705,17 @@ object DocumentProcessor {
                 val combined = ColorMatrix().apply {
                     setConcat(contrastMatrix, satMatrix)
                 }
+                applyColorMatrix(bitmap, combined)
+            }
+            DocumentFilter.NO_SHADOW -> {
+                val satMatrix = ColorMatrix().apply { setSaturation(1.15f) }
+                val shadowLift = ColorMatrix(floatArrayOf(
+                    1.28f, 0f, 0f, 0f, 18f,
+                    0f, 1.28f, 0f, 0f, 18f,
+                    0f, 0f, 1.28f, 0f, 18f,
+                    0f, 0f, 0f, 1f, 0f
+                ))
+                val combined = ColorMatrix().apply { setConcat(shadowLift, satMatrix) }
                 applyColorMatrix(bitmap, combined)
             }
             DocumentFilter.GRAYSCALE -> {

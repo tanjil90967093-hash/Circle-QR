@@ -212,17 +212,35 @@ fun AppNavigation() {
                 SettingsScreen()
             }
 
-            // Scanner Tools
+            // Scanner Tools (All Unified under CamScanner Interface)
             composable(Screen.QrScanner.route) {
-                QrScannerScreen(onBack = { navController.popBackStack() })
+                FullScannerScreen(
+                    initialMode = "QR_BARCODE",
+                    onBack = { navController.popBackStack() },
+                    onNavigateToResult = { content, format ->
+                        navController.navigate(Screen.ScanResult.createRoute(content, format))
+                    }
+                )
             }
 
             composable(Screen.BarcodeScanner.route) {
-                BarcodeScannerScreen(onBack = { navController.popBackStack() })
+                FullScannerScreen(
+                    initialMode = "QR_BARCODE",
+                    onBack = { navController.popBackStack() },
+                    onNavigateToResult = { content, format ->
+                        navController.navigate(Screen.ScanResult.createRoute(content, format))
+                    }
+                )
             }
 
             composable(Screen.DocumentScanner.route) {
-                DocumentScannerScreen(onBack = { navController.popBackStack() })
+                FullScannerScreen(
+                    initialMode = "SCANNER",
+                    onBack = { navController.popBackStack() },
+                    onNavigateToResult = { content, format ->
+                        navController.navigate(Screen.ScanResult.createRoute(content, format))
+                    }
+                )
             }
 
             // PDF Tools
