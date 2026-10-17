@@ -196,7 +196,7 @@ fun SettingsScreen() {
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Utility Hub",
+                                text = "Circle Scanner",
                                 style = TextStyle(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
@@ -479,7 +479,7 @@ fun SettingsScreen() {
                             description = "Check for updates",
                             valueText = "v${com.example.BuildConfig.VERSION_NAME}",
                             onClick = {
-                                Toast.makeText(context, "Utility Hub v${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE}) is up to date", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Circle Scanner v${com.example.BuildConfig.VERSION_NAME} (Build ${com.example.BuildConfig.VERSION_CODE}) is up to date", Toast.LENGTH_SHORT).show()
                             },
                             primaryColor = primaryTextColor,
                             secondaryColor = secondaryTextColor,
@@ -498,7 +498,7 @@ fun SettingsScreen() {
                             description = "Tell us what you think",
                             valueText = null,
                             onClick = {
-                                Toast.makeText(context, "Thank you for using Utility Hub! Your feedback helps us improve.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Thank you for using Circle Scanner! Your feedback helps us improve.", Toast.LENGTH_LONG).show()
                             },
                             primaryColor = primaryTextColor,
                             secondaryColor = secondaryTextColor,
@@ -519,10 +519,10 @@ fun SettingsScreen() {
                             onClick = {
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "Utility Hub App")
-                                    putExtra(Intent.EXTRA_TEXT, "Download Utility Hub — All-in-One tools for scanning, PDFs, and daily productivity: https://play.google.com/store")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Circle Scanner App")
+                                    putExtra(Intent.EXTRA_TEXT, "Download Circle Scanner — All-in-One tools for scanning, PDFs, and daily productivity: https://play.google.com/store")
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share Utility Hub"))
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Circle Scanner"))
                             },
                             primaryColor = primaryTextColor,
                             secondaryColor = secondaryTextColor,

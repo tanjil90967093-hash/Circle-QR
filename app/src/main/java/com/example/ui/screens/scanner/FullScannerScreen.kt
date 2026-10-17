@@ -403,7 +403,7 @@ fun FullScannerScreen(
                     if (!hasCameraPermission) {
                         PermissionNoticeCard(
                             title = "Camera Access Required",
-                            explanation = "Utility Hub needs camera permission for CamScanner document detection and QR scanning.",
+                            explanation = "Circle Scanner needs camera permission for CamScanner document detection and QR scanning.",
                             onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                             modifier = Modifier.align(Alignment.Center)
                         )
@@ -1612,6 +1612,7 @@ fun FullScannerScreen(
                                     ImageUtils.saveBitmapToGalleryOrApp(context, bmp, "ID_Card_${System.currentTimeMillis()}")
                                 }
                                 if (saved != null) {
+                                    repository.addHistory("card_scanner", "ID Card Scan", saved.name)
                                     Toast.makeText(context, "Saved to gallery", Toast.LENGTH_SHORT).show()
                                 }
                                 showCardResultDialog = false
@@ -1664,6 +1665,7 @@ fun FullScannerScreen(
                                     ImageUtils.saveBitmapToGalleryOrApp(context, bmp, "Photo_${System.currentTimeMillis()}")
                                 }
                                 if (file != null) {
+                                    repository.addHistory("image_scanner", "Scanned Photo", file.name)
                                     Toast.makeText(context, "Saved to gallery", Toast.LENGTH_SHORT).show()
                                 }
                                 showImageResultDialog = false

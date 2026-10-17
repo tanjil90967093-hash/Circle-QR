@@ -43,7 +43,7 @@ fun ProScreen() {
 
     Scaffold(
         topBar = {
-            AppTopBar(title = "Utility Hub Pro")
+            AppTopBar(title = "Circle Scanner Pro")
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
@@ -75,7 +75,7 @@ fun ProScreen() {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = if (isProUser) "You're a Pro Member!" else "Unlock the Full Utility Hub",
+                    text = if (isProUser) "You're a Pro Member!" else "Unlock the Full Circle Scanner",
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onBackground
@@ -155,7 +155,7 @@ fun ProScreen() {
                                 BillingManager.launchPurchaseFlow(activity, plan) { success ->
                                     isProcessing = false
                                     if (success) {
-                                        Toast.makeText(context, "Welcome to Utility Hub Pro!", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(context, "Welcome to Circle Scanner Pro!", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
@@ -197,7 +197,7 @@ fun ProScreen() {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Thank you for supporting Utility Hub!",
+                                text = "Thank you for supporting Circle Scanner!",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )

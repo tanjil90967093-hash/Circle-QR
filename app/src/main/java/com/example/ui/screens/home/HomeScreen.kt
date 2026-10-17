@@ -3,6 +3,7 @@ package com.example.ui.screens.home
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,10 +34,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import com.example.UtilityHubApp
 import com.example.data.local.entity.HistoryEntity
 import com.example.domain.model.ToolCategory
 import com.example.domain.model.ToolRegistry
+import com.example.utils.PdfUtils
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.ui.navigation.Screen
 import com.example.ui.theme.BrandBlue
 import com.example.ui.theme.DarkBackground
@@ -74,6 +86,17 @@ fun HomeScreen(
     val favoriteIds by repository.getFavoriteToolIds().collectAsState(initial = emptyList())
     val historyItems by repository.getAllHistory().collectAsState(initial = emptyList())
     val recentTools by repository.getRecentTools().collectAsState(initial = emptyList())
+
+    val scanHistoryItems = remember(historyItems) {
+        historyItems.filter { item ->
+            val id = item.toolId.lowercase()
+            val title = item.title.lowercase()
+            (id == "doc_scanner" || id == "qr_scanner" || id == "barcode_scanner" ||
+             id.contains("pdf") || id.contains("scan") || id.contains("image") || id.contains("img_") ||
+             title.contains("scanned") || title.contains("pdf") || title.contains("photo") || title.contains("scan") || title.contains("document")) &&
+            !title.contains("clicked") && !title.contains("opened") && !title.contains("viewed") && !title.contains("visited")
+        }
+    }
 
     val searchResults = remember(searchQuery) {
         val query = searchQuery.trim()
@@ -320,22 +343,22 @@ fun HomeScreen(
                         }
                     }
 
-                    // 5. Recent Activity
+                    // 5. Scan History
                     item {
                         Column {
                             SectionHeaderRow(
-                                title = "Recent Activity",
+                                title = "Scan History",
                                 primaryTextColor = primaryTextColor,
                                 isDark = isDark,
                                 onSeeAllClick = onNavigateToHistory
                             )
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            if (historyItems.isNotEmpty()) {
+                            if (scanHistoryItems.isNotEmpty()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    val displayItems = historyItems.take(3)
+                                    val displayItems = scanHistoryItems.take(4)
                                     displayItems.forEach { item ->
-                                        RecentActivityRow(
+                                        ScanHistoryRow(
                                             item = item,
                                             cardBg = cardBg,
                                             cardBorder = cardBorder,
@@ -348,7 +371,7 @@ fun HomeScreen(
                                 }
                             } else {
                                 EmptyStateCard(
-                                    message = "No recent activity yet. Your scans and conversions will appear here.",
+                                    message = "No scan history yet. Your scanned documents, photos, and codes will appear here.",
                                     subtleCardBg = subtleCardBg,
                                     cardBorder = cardBorder,
                                     secondaryTextColor = secondaryTextColor
@@ -541,7 +564,7 @@ private fun HomeHeader(
         // Title and Subtitle
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Utility Hub",
+                text = "Circle Scanner",
                 style = TextStyle(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -549,7 +572,7 @@ private fun HomeHeader(
                 )
             )
             Text(
-                text = "All-in-One Tools",
+                text = "Smart Document & Tools",
                 style = TextStyle(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
@@ -705,23 +728,23 @@ private fun HomeSearchBar(
         border = BorderStroke(1.dp, searchBarBorder),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .height(48.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .height(42.dp)
             .testTag("home_search_input")
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search",
                 tint = secondaryTextColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier.weight(1f),
                 contentAlignment = Alignment.CenterStart
@@ -730,7 +753,7 @@ private fun HomeSearchBar(
                     Text(
                         text = "Search tools and features...",
                         style = TextStyle(
-                            fontSize = 14.sp,
+                            fontSize = 13.5.sp,
                             color = secondaryTextColor
                         )
                     )
@@ -740,7 +763,7 @@ private fun HomeSearchBar(
                     onValueChange = onQueryChange,
                     singleLine = true,
                     textStyle = TextStyle(
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         color = primaryTextColor,
                         fontWeight = FontWeight.Normal
                     ),
@@ -757,7 +780,7 @@ private fun HomeSearchBar(
                         imageVector = Icons.Default.Clear,
                         contentDescription = "Clear",
                         tint = secondaryTextColor,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
@@ -1025,18 +1048,18 @@ private fun CategoryCompactCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = backgroundColor,
-        border = BorderStroke(0.7.dp, borderColor),
+        border = BorderStroke(0.6.dp, borderColor),
         modifier = modifier
-            .height(86.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(68.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 8.dp),
+                .padding(horizontal = 4.dp, vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -1044,15 +1067,15 @@ private fun CategoryCompactCard(
                 CategoryIconType.PDF_BADGE -> {
                     Box(
                         modifier = Modifier
-                            .size(30.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
                             .background(badgeColor),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "PDF",
                             style = TextStyle(
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
@@ -1064,7 +1087,7 @@ private fun CategoryCompactCard(
                         imageVector = Icons.Default.QrCodeScanner,
                         contentDescription = title,
                         tint = badgeColor,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 CategoryIconType.IMAGE -> {
@@ -1072,7 +1095,7 @@ private fun CategoryCompactCard(
                         imageVector = Icons.Default.Image,
                         contentDescription = title,
                         tint = badgeColor,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 CategoryIconType.FILES -> {
@@ -1080,17 +1103,17 @@ private fun CategoryCompactCard(
                         imageVector = Icons.Default.Folder,
                         contentDescription = title,
                         tint = badgeColor,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = title,
                 style = TextStyle(
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = primaryTextColor,
                     textAlign = TextAlign.Center
@@ -1103,10 +1126,10 @@ private fun CategoryCompactCard(
 }
 
 // ---------------------------------------------------------------------------
-// 7. Recent Activity Row
+// 7. Scan History Row (Real thumbnails, scan type chips, document names & dates)
 // ---------------------------------------------------------------------------
 @Composable
-private fun RecentActivityRow(
+private fun ScanHistoryRow(
     item: HistoryEntity,
     cardBg: Color = Color.White,
     cardBorder: Color = Color(0xFFF1F5F9),
@@ -1115,60 +1138,113 @@ private fun RecentActivityRow(
     isDark: Boolean = false,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val relativeTime = remember(item.timestamp) {
         formatRelativeTime(item.timestamp)
     }
 
-    val (badgeBg, iconVector, isPdf) = when {
-        item.toolId.contains("pdf", ignoreCase = true) || item.title.contains("pdf", ignoreCase = true) -> {
-            Triple(Color(0xFFEF4444), Icons.Default.PictureAsPdf, true)
+    val (scanTypeLabel, typeColor, typeIcon) = remember(item.toolId, item.title) {
+        val id = item.toolId.lowercase()
+        val title = item.title.lowercase()
+        when {
+            id.contains("doc") || title.contains("document") -> Triple("Document", Color(0xFF0F766E), Icons.Default.Description)
+            id.contains("pdf") || title.contains("pdf") -> Triple("PDF", Color(0xFFEF4444), Icons.Default.PictureAsPdf)
+            id.contains("qr") || title.contains("qr") -> Triple("QR Code", Color(0xFF2563EB), Icons.Default.QrCode2)
+            id.contains("barcode") || title.contains("barcode") -> Triple("Barcode", Color(0xFF7C3AED), Icons.Default.QrCodeScanner)
+            id.contains("card") || title.contains("card") -> Triple("ID Card", Color(0xFFD97706), Icons.Default.Badge)
+            id.contains("image") || id.contains("photo") || title.contains("photo") -> Triple("Image", Color(0xFF16A34A), Icons.Default.Image)
+            else -> Triple("Scan", Color(0xFF0284C7), Icons.Default.DocumentScanner)
         }
-        item.toolId.contains("image", ignoreCase = true) || item.title.contains("image", ignoreCase = true) -> {
-            Triple(Color(0xFF16A34A), Icons.Default.Image, false)
-        }
-        else -> {
-            Triple(Color(0xFF2563EB), Icons.Default.QrCodeScanner, false)
+    }
+
+    var thumbnailBitmap by remember(item.id) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(item.id, item.details) {
+        withContext(Dispatchers.IO) {
+            try {
+                // 1. Look for PDF file in pdfs folder
+                val pdfDir = File(context.filesDir, "pdfs")
+                val candidatePdf = if (item.details.endsWith(".pdf", ignoreCase = true)) {
+                    File(pdfDir, item.details)
+                } else null
+
+                if (candidatePdf != null && candidatePdf.exists()) {
+                    val uri = Uri.fromFile(candidatePdf)
+                    val bmps = PdfUtils.pdfToBitmaps(context, uri, 1)
+                    if (bmps.isNotEmpty()) {
+                        thumbnailBitmap = bmps.first()
+                        return@withContext
+                    }
+                }
+
+                // 2. Look for Image in images or exported_media
+                val imgDir = File(context.filesDir, "images")
+                val mediaDir = File(context.filesDir, "exported_media")
+                val possibleImg = listOf(
+                    File(imgDir, item.details),
+                    File(mediaDir, item.details),
+                    File(item.details)
+                ).firstOrNull { it.exists() && it.isFile }
+
+                if (possibleImg != null) {
+                    val opts = BitmapFactory.Options().apply { inSampleSize = 4 }
+                    val bmp = BitmapFactory.decodeFile(possibleImg.absolutePath, opts)
+                    if (bmp != null) {
+                        thumbnailBitmap = bmp
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback to type icon badge
+            }
         }
     }
 
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = cardBg,
         border = BorderStroke(1.dp, cardBorder),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .testTag("recent_item_${item.id}")
+            .testTag("scan_history_item_${item.id}")
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left Colored Square Badge
+            // Left Thumbnail or Category Badge
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(42.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(badgeBg),
+                    .background(typeColor.copy(alpha = if (thumbnailBitmap != null) 0.05f else 0.12f))
+                    .border(1.dp, typeColor.copy(alpha = 0.25f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (isPdf) {
+                if (thumbnailBitmap != null) {
+                    Image(
+                        bitmap = thumbnailBitmap!!.asImageBitmap(),
+                        contentDescription = "Scan Preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (scanTypeLabel == "PDF") {
                     Text(
                         text = "PDF",
                         style = TextStyle(
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = typeColor
                         )
                     )
                 } else {
                     Icon(
-                        imageVector = iconVector,
-                        contentDescription = null,
-                        tint = Color.White,
+                        imageVector = typeIcon,
+                        contentDescription = scanTypeLabel,
+                        tint = typeColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1176,46 +1252,75 @@ private fun RecentActivityRow(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Title & Details
+            // Title, Type Tag & Details
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.title,
-                    style = TextStyle(
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = primaryTextColor
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = item.title,
+                        style = TextStyle(
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = primaryTextColor
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = item.details.ifBlank { "Operation completed" },
-                    style = TextStyle(
-                        fontSize = 11.5.sp,
-                        color = secondaryTextColor
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                    // Type Badge Chip
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = typeColor.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = scanTypeLabel,
+                            color = typeColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = item.details.ifBlank { "Scan completed" },
+                        style = TextStyle(
+                            fontSize = 11.5.sp,
+                            color = secondaryTextColor
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Text(
+                        text = relativeTime,
+                        style = TextStyle(
+                            fontSize = 11.sp,
+                            color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                        )
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Relative Timestamp
-            Text(
-                text = relativeTime,
-                style = TextStyle(
-                    fontSize = 11.5.sp,
-                    color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
-                )
-            )
-
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = Color(0xFFCBD5E1),
-                modifier = Modifier.size(18.dp)
+                tint = if (isDark) Color(0xFF475569) else Color(0xFFCBD5E1),
+                modifier = Modifier.size(16.dp)
             )
         }
     }

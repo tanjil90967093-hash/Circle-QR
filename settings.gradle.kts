@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Utility Hub"
+rootProject.name = "Circle Scanner"
 
 include(":app")

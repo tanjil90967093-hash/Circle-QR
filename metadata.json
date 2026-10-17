@@ -1,6 +1,6 @@
 {
-  "name": "Utility Hub",
-  "description": "Scanner-first all-in-one utility suite: live QR & barcode scanner, multi-page document & PDF scanner, ID card & image capture, plus PDF tools, image editor, expense tracker, calculators, and productivity suite.",
+  "name": "Circle Scanner",
+  "description": "Smart document scanning, CamScanner-style perspective crop, PDF tools, QR and barcode reader, and all-in-one utility suite.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
