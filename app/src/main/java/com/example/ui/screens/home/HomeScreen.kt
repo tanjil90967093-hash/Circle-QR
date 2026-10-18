@@ -41,11 +41,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import com.example.UtilityHubApp
 import com.example.data.local.entity.HistoryEntity
 import com.example.domain.model.ToolCategory
 import com.example.domain.model.ToolRegistry
 import com.example.utils.PdfUtils
+import com.example.utils.StorageUtils
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -80,12 +84,43 @@ fun HomeScreen(
 ) {
     val repository = remember { UtilityHubApp.instance.repository }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var searchQuery by remember { mutableStateOf("") }
 
     val favoriteIds by repository.getFavoriteToolIds().collectAsState(initial = emptyList())
     val historyItems by repository.getAllHistory().collectAsState(initial = emptyList())
     val recentTools by repository.getRecentTools().collectAsState(initial = emptyList())
+
+    var previewItem by remember { mutableStateOf<HistoryEntity?>(null) }
+    var previewFile by remember { mutableStateOf<File?>(null) }
+    var missingItem by remember { mutableStateOf<HistoryEntity?>(null) }
+
+    fun handleScanItemClick(item: HistoryEntity) {
+        val id = item.toolId.lowercase()
+        val title = item.title.lowercase()
+        if (id.contains("qr") || id.contains("barcode") || title.contains("qr") || title.contains("barcode")) {
+            val format = if (id.contains("barcode") || title.contains("barcode")) "CODE_128" else "QR_CODE"
+            onNavigateToTool(Screen.ScanResult.createRoute(item.details, format))
+        } else {
+            val pdfDir = File(context.filesDir, "pdfs")
+            val imgDir = File(context.filesDir, "images")
+            val mediaDir = File(context.filesDir, "exported_media")
+            val resolved = listOf(
+                File(pdfDir, item.details),
+                File(imgDir, item.details),
+                File(mediaDir, item.details),
+                File(item.details)
+            ).firstOrNull { it.exists() && it.isFile }
+
+            if (resolved != null) {
+                previewItem = item
+                previewFile = resolved
+            } else {
+                missingItem = item
+            }
+        }
+    }
 
     val scanHistoryItems = remember(historyItems) {
         historyItems.filter { item ->
@@ -365,91 +400,16 @@ fun HomeScreen(
                                             primaryTextColor = primaryTextColor,
                                             secondaryTextColor = secondaryTextColor,
                                             isDark = isDark,
-                                            onClick = onNavigateToHistory
+                                            onClick = { handleScanItemClick(item) }
                                         )
                                     }
                                 }
                             } else {
                                 EmptyStateCard(
-                                    message = "No scan history yet. Your scanned documents, photos, and codes will appear here.",
+                                    message = "Your scans will appear here. Tap the Camera button to scan your first document.",
                                     subtleCardBg = subtleCardBg,
                                     cardBorder = cardBorder,
                                     secondaryTextColor = secondaryTextColor
-                                )
-                            }
-                        }
-                    }
-
-                    // 6. Favorite Tools
-                    item {
-                        Column {
-                            SectionHeaderRow(
-                                title = "Favorite Tools",
-                                primaryTextColor = primaryTextColor,
-                                isDark = isDark,
-                                onSeeAllClick = onNavigateToTools
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Favorite 1: QR Scanner
-                                FavoriteCompactCard(
-                                    title = "QR Scanner",
-                                    badgeColor = Color(0xFF2563EB),
-                                    backgroundColor = if (isDark) Color(0xFF2563EB).copy(alpha = 0.15f) else Color(0xFFEFF6FF),
-                                    borderColor = if (isDark) Color(0xFF2563EB).copy(alpha = 0.35f) else Color(0xFFDBEAFE),
-                                    primaryTextColor = primaryTextColor,
-                                    icon = Icons.Default.QrCodeScanner,
-                                    onClick = {
-                                        scope.launch { repository.recordToolUsage("tool_qr_scanner") }
-                                        onNavigateToTool(Screen.QrScanner.route)
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                // Favorite 2: PDF Tools
-                                FavoriteCompactCard(
-                                    title = "PDF Tools",
-                                    badgeColor = Color(0xFFEF4444),
-                                    backgroundColor = if (isDark) Color(0xFFEF4444).copy(alpha = 0.15f) else Color(0xFFFEF2F2),
-                                    borderColor = if (isDark) Color(0xFFEF4444).copy(alpha = 0.35f) else Color(0xFFFEE2E2),
-                                    primaryTextColor = primaryTextColor,
-                                    icon = Icons.Default.PictureAsPdf,
-                                    onClick = {
-                                        scope.launch { repository.recordToolUsage("tool_pdf_tools") }
-                                        onNavigateToTool(Screen.PdfTools.createRoute(0))
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                // Favorite 3: Image Compressor
-                                FavoriteCompactCard(
-                                    title = "Image\nCompressor",
-                                    badgeColor = Color(0xFF16A34A),
-                                    backgroundColor = if (isDark) Color(0xFF16A34A).copy(alpha = 0.15f) else Color(0xFFF0FDF4),
-                                    borderColor = if (isDark) Color(0xFF16A34A).copy(alpha = 0.35f) else Color(0xFFDCFCE7),
-                                    primaryTextColor = primaryTextColor,
-                                    icon = Icons.Default.Image,
-                                    onClick = {
-                                        scope.launch { repository.recordToolUsage("tool_image_tools") }
-                                        onNavigateToTool(Screen.ImageTools.createRoute(0))
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                // Favorite 4: File Manager
-                                FavoriteCompactCard(
-                                    title = "File Manager",
-                                    badgeColor = Color(0xFF9333EA),
-                                    backgroundColor = if (isDark) Color(0xFF9333EA).copy(alpha = 0.15f) else Color(0xFFFAF5FF),
-                                    borderColor = if (isDark) Color(0xFF9333EA).copy(alpha = 0.35f) else Color(0xFFF3E8FF),
-                                    primaryTextColor = primaryTextColor,
-                                    icon = Icons.Default.Folder,
-                                    onClick = {
-                                        scope.launch { repository.recordToolUsage("tool_file_manager") }
-                                        onNavigateToTool(Screen.FileManager.route)
-                                    },
-                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -535,10 +495,89 @@ fun HomeScreen(
             }
         }
     }
+
+    // Scan Detail Preview Dialog
+    if (previewItem != null && previewFile != null) {
+        ScanDetailPreviewDialog(
+            item = previewItem!!,
+            file = previewFile!!,
+            isDark = isDark,
+            onDismiss = {
+                previewItem = null
+                previewFile = null
+            },
+            onOpenFile = {
+                try {
+                    val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", previewFile!!)
+                    val mime = if (previewFile!!.name.endsWith(".pdf", ignoreCase = true)) "application/pdf" else "image/*"
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, mime)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "No app available to open this file", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onShareFile = {
+                try {
+                    val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", previewFile!!)
+                    val mime = if (previewFile!!.name.endsWith(".pdf", ignoreCase = true)) "application/pdf" else "image/*"
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = mime
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Share Scanned Document"))
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Unable to share file", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    // Missing File Dialog
+    if (missingItem != null) {
+        AlertDialog(
+            onDismissRequest = { missingItem = null },
+            title = {
+                Text(
+                    text = "Scan File Unavailable",
+                    fontWeight = FontWeight.Bold,
+                    color = primaryTextColor
+                )
+            },
+            text = {
+                Text(
+                    text = "The file '${missingItem!!.details}' is no longer available in local storage. It may have been moved or deleted.\n\nWould you like to remove this entry from your scan history?",
+                    color = secondaryTextColor,
+                    fontSize = 13.5.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toDelete = missingItem!!.id
+                        scope.launch { repository.deleteHistory(toDelete) }
+                        missingItem = null
+                        Toast.makeText(context, "History entry removed", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Remove Entry", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { missingItem = null }) {
+                    Text("Keep in History")
+                }
+            }
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
-// 1. Header (Logo, Utility Hub, Pro button, Settings button)
+// 1. Header (Logo, Circle Scanner, Pro button, Profile button)
 // ---------------------------------------------------------------------------
 @Composable
 private fun HomeHeader(
@@ -631,29 +670,29 @@ private fun HomeHeader(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Circular Settings Icon
-        val settingsBg = when {
+        // Circular Profile Icon (Option A: Header -> Profile | Bottom Nav -> Settings)
+        val profileBg = when {
             isDark -> Color(0xFF1E293B)
             isReading -> ReadingSurface
             else -> Color(0xFFF8FAFC)
         }
-        val settingsIconTint = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+        val profileIconTint = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
 
         Surface(
             shape = CircleShape,
-            color = settingsBg,
+            color = profileBg,
             border = BorderStroke(1.dp, cardBorder),
             modifier = Modifier
                 .size(38.dp)
                 .clip(CircleShape)
                 .clickable { onNavigateToSettings() }
-                .testTag("home_settings_action")
+                .testTag("home_profile_action")
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Settings",
-                    tint = settingsIconTint,
+                    imageVector = Icons.Outlined.Person,
+                    contentDescription = "Profile",
+                    tint = profileIconTint,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -1459,4 +1498,173 @@ private fun formatRelativeTime(timestamp: Long): String {
             sdf.format(Date(timestamp))
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// 9. Scan Detail Preview Dialog (Full Preview, Metadata, Open & Share)
+// ---------------------------------------------------------------------------
+@Composable
+private fun ScanDetailPreviewDialog(
+    item: HistoryEntity,
+    file: File,
+    isDark: Boolean,
+    onDismiss: () -> Unit,
+    onOpenFile: () -> Unit,
+    onShareFile: () -> Unit
+) {
+    val context = LocalContext.current
+    var previewBitmap by remember(file.absolutePath) { mutableStateOf<Bitmap?>(null) }
+    val isPdf = file.name.endsWith(".pdf", ignoreCase = true)
+
+    LaunchedEffect(file.absolutePath) {
+        withContext(Dispatchers.IO) {
+            try {
+                if (isPdf) {
+                    val uri = Uri.fromFile(file)
+                    val bmps = PdfUtils.pdfToBitmaps(context, uri, 1)
+                    if (bmps.isNotEmpty()) previewBitmap = bmps.first()
+                } else {
+                    val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+                    previewBitmap = BitmapFactory.decodeFile(file.absolutePath, opts)
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    val dialogBg = if (isDark) DarkSurface else Color.White
+    val textColor = if (isDark) DarkTextPrimary else Color(0xFF0F172A)
+    val secondaryText = if (isDark) DarkTextSecondary else Color(0xFF64748B)
+    val cardBorder = if (isDark) DarkBorder else Color(0xFFE2E8F0)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        titleContentColor = textColor,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isPdf) Color(0xFFEF4444).copy(alpha = 0.12f) else BrandBlue.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPdf) Icons.Default.PictureAsPdf else Icons.Default.Image,
+                        contentDescription = null,
+                        tint = if (isPdf) Color(0xFFEF4444) else BrandBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textColor),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (isPdf) "PDF Document" else "Scanned Image",
+                        style = TextStyle(fontSize = 11.sp, color = secondaryText)
+                    )
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = secondaryText)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Preview Image or Placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isDark) Color(0xFF0B132B) else Color(0xFFF8FAFC))
+                        .border(1.dp, cardBorder, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (previewBitmap != null) {
+                        Image(
+                            bitmap = previewBitmap!!.asImageBitmap(),
+                            contentDescription = "Document Preview",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPdf) Icons.Default.PictureAsPdf else Icons.Default.DocumentScanner,
+                                contentDescription = null,
+                                tint = secondaryText,
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Preview ready",
+                                color = secondaryText,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+
+                // File metadata details
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("File Name:", fontSize = 12.sp, color = secondaryText)
+                            Text(file.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = textColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Size:", fontSize = 12.sp, color = secondaryText)
+                            Text(StorageUtils.formatFileSize(file.length()), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = textColor)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Date:", fontSize = 12.sp, color = secondaryText)
+                            val dateStr = SimpleDateFormat("MMM dd, yyyy · hh:mm a", Locale.getDefault()).format(Date(item.timestamp))
+                            Text(dateStr, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = textColor)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onOpenFile,
+                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+            ) {
+                Icon(imageVector = Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Open File", color = Color.White)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onShareFile) {
+                Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Share")
+            }
+        }
+    )
 }

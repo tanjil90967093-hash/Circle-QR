@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.example.domain.model.ToolCategory
 import com.example.domain.model.ToolItem
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppTopBar(
     title: String,
@@ -31,23 +30,45 @@ fun AppTopBar(
     navigationIcon: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    TopAppBar(
-        title = {
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("app_top_bar")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(50.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (navigationIcon != null) {
+                navigationIcon()
+                Spacer(modifier = Modifier.width(4.dp))
+            } else {
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-        },
-        navigationIcon = navigationIcon ?: {},
-        actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
-        modifier = modifier.testTag("app_top_bar")
-    )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                content = actions
+            )
+        }
+    }
 }
 
 @Composable
@@ -55,13 +76,14 @@ fun AppBackButton(onBack: () -> Unit) {
     IconButton(
         onClick = onBack,
         modifier = Modifier
-            .size(48.dp)
+            .size(40.dp)
             .testTag("app_back_button")
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = MaterialTheme.colorScheme.onBackground
+            tint = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.size(22.dp)
         )
     }
 }

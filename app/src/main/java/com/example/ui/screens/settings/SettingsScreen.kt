@@ -157,7 +157,7 @@ fun SettingsScreen() {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 2. Utility Hub App Card (Profile/App Info Card)
+            // 2. Circle Scanner App Card (Profile/App Info Card)
             item {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
@@ -167,7 +167,7 @@ fun SettingsScreen() {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(18.dp))
                         .clickable {
-                            Toast.makeText(context, "Utility Hub v1.0.0 — All tools ready", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Circle Scanner v1.0.0 — All tools ready", Toast.LENGTH_SHORT).show()
                         }
                         .testTag("settings_app_profile_card")
                 ) {
@@ -800,7 +800,7 @@ fun SettingsScreen() {
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Utility Hub operates with an on-device privacy policy. All document scans, barcodes, files, photos, calculations, and notes are processed and stored exclusively in private local storage on your device.\n\nWe do not collect, transmit, or sell your personal data or scanned documents to external cloud servers.",
+                        text = "Circle Scanner operates with an on-device privacy policy. All document scans, barcodes, files, photos, calculations, and notes are processed and stored exclusively in private local storage on your device.\n\nWe do not collect, transmit, or sell your personal data or scanned documents to external cloud servers.",
                         color = secondaryTextColor,
                         fontSize = 13.sp,
                         lineHeight = 18.sp
@@ -826,14 +826,14 @@ fun SettingsScreen() {
             text = {
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
                     Text(
-                        text = "Utility Hub License & Terms",
+                        text = "Circle Scanner License & Terms",
                         fontWeight = FontWeight.Bold,
                         color = if (isDark) DarkBlue else BrandBlue,
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Utility Hub is provided for your personal productivity and daily utility needs. All tools including PDF converters, calculators, and scanners are offered as-is with local processing capabilities.\n\nPlease ensure you maintain backup copies of important documents and files.",
+                        text = "Circle Scanner is provided for your personal productivity and daily utility needs. All tools including PDF converters, calculators, and scanners are offered as-is with local processing capabilities.\n\nPlease ensure you maintain backup copies of important documents and files.",
                         color = secondaryTextColor,
                         fontSize = 13.sp,
                         lineHeight = 18.sp

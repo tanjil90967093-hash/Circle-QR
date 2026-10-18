@@ -103,7 +103,7 @@ fun FileManagerScreen(
             if (filteredFiles.isEmpty()) {
                 EmptyState(
                     title = "No files found",
-                    description = "PDFs, compressed photos and exports created by Utility Hub will show here.",
+                    description = "PDFs, compressed photos and exports created by Circle Scanner will show here.",
                     icon = Icons.Default.FolderOpen
                 )
             } else {

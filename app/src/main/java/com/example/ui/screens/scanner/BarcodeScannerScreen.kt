@@ -131,7 +131,7 @@ fun BarcodeScannerScreen(
             if (!hasCameraPermission) {
                 PermissionNoticeCard(
                     title = "Camera Permission Required",
-                    explanation = "Utility Hub needs camera access to scan barcodes.",
+                    explanation = "Circle Scanner needs camera access to scan barcodes.",
                     onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                     modifier = Modifier.align(Alignment.Center)
                 )

@@ -2,6 +2,7 @@ package com.example.ui.navigation
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -60,11 +61,12 @@ fun AppNavigation() {
             currentRoute == Screen.Tools.route ||
             currentRoute.startsWith("category/") ||
             currentRoute == Screen.History.route ||
-            currentRoute == Screen.Pro.route ||
+            currentRoute == Screen.FileManager.route ||
             currentRoute == Screen.Settings.route
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (isBottomBarVisible) {
                 AppBottomBar(
@@ -100,7 +102,7 @@ fun AppNavigation() {
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
             enterTransition = { EnterTransition.None },
             exitTransition = { ExitTransition.None }
         ) {

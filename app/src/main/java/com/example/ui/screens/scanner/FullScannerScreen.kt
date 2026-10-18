@@ -577,7 +577,7 @@ fun FullScannerScreen(
                             },
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(top = 70.dp)
+                                .padding(top = 54.dp)
                                 .testTag("camscanner_instructions")
                         ) {
                             val msg = when {
@@ -610,7 +610,7 @@ fun FullScannerScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.TopCenter)
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -872,7 +872,7 @@ fun FullScannerScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
@@ -986,7 +986,7 @@ fun FullScannerScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -1173,7 +1173,7 @@ fun FullScannerScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {

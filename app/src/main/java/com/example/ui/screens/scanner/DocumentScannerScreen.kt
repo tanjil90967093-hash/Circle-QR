@@ -368,7 +368,7 @@ fun DocumentScannerScreen(
                     if (!hasCameraPermission) {
                         PermissionNoticeCard(
                             title = "Camera Permission Required",
-                            explanation = "Utility Hub needs camera access to capture documents, receipts, and book pages.",
+                            explanation = "Circle Scanner needs camera access to capture documents, receipts, and book pages.",
                             onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) }
                         )
                     } else {
@@ -1484,7 +1484,7 @@ fun DocumentScannerScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "The file will be compiled and saved to your Utility Hub document storage.",
+                        text = "The file will be compiled and saved to your Circle Scanner document storage.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )

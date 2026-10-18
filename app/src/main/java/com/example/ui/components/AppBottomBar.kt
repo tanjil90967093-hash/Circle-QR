@@ -38,117 +38,99 @@ fun AppBottomBar(
     onScannerClick: () -> Unit = { onNavigate(Screen.Scanner.createRoute("QR_BARCODE")) },
     modifier: Modifier = Modifier
 ) {
-    // Protrusion distance of the circular Scanner button above the navigation bar's top border
-    val circleProtrusion = 18.dp
-    val buttonSize = 58.dp
-
-    Box(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
-            .wrapContentHeight()
-            .testTag("app_bottom_bar")
+            .testTag("app_bottom_bar"),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     ) {
-        // 1. Navigation Bar Base Surface (at normal bottom position)
-        Surface(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(top = circleProtrusion),
-            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            shadowElevation = 10.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                .navigationBarsPadding()
+                .height(64.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            // 1. Home
+            val isHomeSelected = currentRoute == Screen.Home.route
+            BottomNavItemCell(
+                title = "Home",
+                icon = if (isHomeSelected) Icons.Filled.Home else Icons.Outlined.Home,
+                isSelected = isHomeSelected,
+                onClick = { onNavigate(Screen.Home.route) },
+                modifier = Modifier.weight(1f),
+                testTag = "nav_item_home"
+            )
+
+            // 2. Tools
+            val isToolsSelected = currentRoute == Screen.Tools.route || currentRoute?.startsWith("category/") == true
+            BottomNavItemCell(
+                title = "Tools",
+                icon = if (isToolsSelected) Icons.Filled.GridView else Icons.Outlined.GridView,
+                isSelected = isToolsSelected,
+                onClick = { onNavigate(Screen.Tools.route) },
+                modifier = Modifier.weight(1f),
+                testTag = "nav_item_tools"
+            )
+
+            // 3. Center Scanner Button (Prominent circular action button)
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .height(64.dp)
-                    .padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .weight(1.1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center
             ) {
-                // 1. Home
-                val isHomeSelected = currentRoute == Screen.Home.route
-                BottomNavItemCell(
-                    title = "Home",
-                    icon = if (isHomeSelected) Icons.Filled.Home else Icons.Outlined.Home,
-                    isSelected = isHomeSelected,
-                    onClick = { onNavigate(Screen.Home.route) },
-                    modifier = Modifier.weight(1f),
-                    testTag = "nav_item_home"
-                )
-
-                // 2. Tools
-                val isToolsSelected = currentRoute?.startsWith("tools") == true || currentRoute?.startsWith("category") == true
-                BottomNavItemCell(
-                    title = "Tools",
-                    icon = if (isToolsSelected) Icons.Filled.GridView else Icons.Outlined.GridView,
-                    isSelected = isToolsSelected,
-                    onClick = { onNavigate(Screen.Tools.route) },
-                    modifier = Modifier.weight(1f),
-                    testTag = "nav_item_tools"
-                )
-
-                // 3. Center Spacer (holds place for the overlapping Scanner button)
-                Spacer(modifier = Modifier.weight(1f))
-
-                // 4. Pro
-                val isProSelected = currentRoute == Screen.Pro.route
-                BottomNavItemCell(
-                    title = "Pro",
-                    icon = if (isProSelected) Icons.Filled.WorkspacePremium else Icons.Outlined.WorkspacePremium,
-                    isSelected = isProSelected,
-                    onClick = { onNavigate(Screen.Pro.route) },
-                    modifier = Modifier.weight(1f),
-                    testTag = "nav_item_pro"
-                )
-
-                // 5. Settings
-                val isSettingsSelected = currentRoute == Screen.Settings.route
-                BottomNavItemCell(
-                    title = "Settings",
-                    icon = if (isSettingsSelected) Icons.Filled.Settings else Icons.Outlined.Settings,
-                    isSelected = isSettingsSelected,
-                    onClick = { onNavigate(Screen.Settings.route) },
-                    modifier = Modifier.weight(1f),
-                    testTag = "nav_item_settings"
-                )
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .shadow(
+                            elevation = 4.dp,
+                            shape = CircleShape,
+                            ambientColor = BrandBlue.copy(alpha = 0.35f),
+                            spotColor = BrandBlue.copy(alpha = 0.55f)
+                        )
+                        .clip(CircleShape)
+                        .background(BrandBlue)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(bounded = true, color = Color.White),
+                            role = Role.Button,
+                            onClick = onScannerClick
+                        )
+                        .testTag("floating_scanner_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.QrCodeScanner,
+                        contentDescription = "Scanner",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
-        }
 
-        // 2. Integrated Center Scanner Button (drawn on top of the Surface & its top border)
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .size(buttonSize)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = CircleShape,
-                    ambientColor = BrandBlue.copy(alpha = 0.35f),
-                    spotColor = BrandBlue.copy(alpha = 0.65f)
-                )
-                .clip(CircleShape)
-                .background(BrandBlue)
-                .border(
-                    width = 3.5.dp,
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = CircleShape
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = true, color = Color.White),
-                    role = Role.Button,
-                    onClick = onScannerClick
-                )
-                .testTag("floating_scanner_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.QrCodeScanner,
-                contentDescription = "Scanner",
-                tint = Color.White,
-                modifier = Modifier.size(26.dp)
+            // 4. All Documents (replacing removed bottom Pro item)
+            val isDocsSelected = currentRoute == Screen.FileManager.route
+            BottomNavItemCell(
+                title = "Documents",
+                icon = if (isDocsSelected) Icons.Filled.Description else Icons.Outlined.Description,
+                isSelected = isDocsSelected,
+                onClick = { onNavigate(Screen.FileManager.route) },
+                modifier = Modifier.weight(1f),
+                testTag = "nav_item_documents"
+            )
+
+            // 5. Settings
+            val isSettingsSelected = currentRoute == Screen.Settings.route
+            BottomNavItemCell(
+                title = "Settings",
+                icon = if (isSettingsSelected) Icons.Filled.Settings else Icons.Outlined.Settings,
+                isSelected = isSettingsSelected,
+                onClick = { onNavigate(Screen.Settings.route) },
+                modifier = Modifier.weight(1f),
+                testTag = "nav_item_settings"
             )
         }
     }

@@ -138,7 +138,7 @@ fun QrScannerScreen(
             if (!hasCameraPermission) {
                 PermissionNoticeCard(
                     title = "Camera Permission Required",
-                    explanation = "Utility Hub needs camera access to scan QR codes in real-time.",
+                    explanation = "Circle Scanner needs camera access to scan QR codes in real-time.",
                     onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                     modifier = Modifier.align(Alignment.Center)
                 )

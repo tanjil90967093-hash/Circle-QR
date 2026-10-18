@@ -139,7 +139,7 @@ fun StorageAnalyzerScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text(
-                            text = "Utility Hub Storage Footprint",
+                            text = "Circle Scanner Storage Footprint",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
 
